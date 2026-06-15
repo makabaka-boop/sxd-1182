@@ -6,15 +6,33 @@ export type EventType = 'demand_surge' | 'route_block' | 'anomaly' | 'boost_refi
 
 export type TaskType =
   | 'turn_limit'
+  | 'no_gap'
+  | 'cost_control'
   | 'urgent_priority'
   | 'anomaly_response'
-  | 'cost_control'
-  | 'no_gap'
   | 'efficiency_target'
+  | 'combo_delivery'
+  | 'inventory_efficiency'
+  | 'event_handler'
+  | 'perfect_route'
+  | 'priority_optimizer'
+  | 'speed_demon'
 
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed'
 
 export type AchievementRarity = 'common' | 'rare' | 'epic' | 'legendary'
+
+export type AchievementConditionType =
+  | 'efficiency_target'
+  | 'anomaly_response'
+  | 'no_gap'
+  | 'task_completion'
+  | 'score_target'
+  | 'star_target'
+  | 'turn_limit'
+  | 'cost_control'
+  | 'combo_delivery'
+  | 'all_tasks'
 
 export interface SupplyPoint {
   id: string
@@ -80,26 +98,6 @@ export interface TaskProgress {
   status: TaskStatus
 }
 
-export interface Achievement {
-  id: string
-  levelId: number
-  name: string
-  description: string
-  icon: string
-  rarity: AchievementRarity
-  condition: {
-    type: TaskType
-    threshold: number
-    higherIsBetter?: boolean
-  }
-  scoreBonus: number
-}
-
-export interface UnlockedAchievement {
-  achievementId: string
-  unlockedAt: number
-}
-
 export interface TaskResult {
   taskId: string
   taskName: string
@@ -109,6 +107,30 @@ export interface TaskResult {
   threshold: number
   scoreBonus: number
   description: string
+}
+
+export interface BestTaskRecord {
+  taskId: string
+  taskName: string
+  currentValue: number
+  threshold: number
+}
+
+export interface AchievementCondition {
+  type: AchievementConditionType
+  threshold: number
+  higherIsBetter?: boolean
+}
+
+export interface Achievement {
+  id: string
+  levelId: number
+  name: string
+  description: string
+  icon: string
+  rarity: AchievementRarity
+  condition: AchievementCondition
+  scoreBonus: number
 }
 
 export interface LevelConfig {
@@ -122,9 +144,9 @@ export interface LevelConfig {
   eventProbability: number
   maxTurns: number
   targetScore: number
+  costThreshold?: number
   tasks: TaskTarget[]
   achievements: Achievement[]
-  costThreshold: number
 }
 
 export interface GameState {
@@ -153,6 +175,9 @@ export interface GameStats {
   taskResults: TaskResult[]
   unlockedAchievements: string[]
   taskBonusScore: number
+  comboCount?: number
+  maxCombo?: number
+  eventsHandled?: number
 }
 
 export interface ScoreRecord {
@@ -160,13 +185,9 @@ export interface ScoreRecord {
   score: number
   stars: number
   timestamp: number
-  unlockedAchievementIds: string[]
-  taskCompletedCount: number
-  totalTaskCount: number
-  bestTaskRecord: {
-    taskId: string
-    taskName: string
-    currentValue: number
-    threshold: number
-  }[]
+  unlockedAchievementIds?: string[]
+  taskCompletedCount?: number
+  totalTaskCount?: number
+  bestTaskRecord?: BestTaskRecord[]
+  highestAchievementRarity?: AchievementRarity
 }

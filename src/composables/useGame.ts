@@ -40,6 +40,12 @@ export function useGame(levelId: number) {
   const executedSteps = reactive<RouteStep[]>([])
   const urgentDeliveryTurns = reactive<Record<string, number>>({})
   const taskProgress = reactive<TaskProgress[]>([])
+  const comboCount = ref(0)
+  const maxCombo = ref(0)
+  const eventsHandled = ref(0)
+  const priorityChangeCount = ref(0)
+  const usedPriorities = reactive<Set<Priority>>(new Set())
+  const totalDeliveredThisStep = ref(0)
 
   let currentLevelConfig = LEVELS.find(l => l.id === levelId) || LEVELS[0]
 
@@ -135,6 +141,47 @@ export function useGame(levelId: number) {
           : value <= task.threshold
         break
       }
+      case 'combo_delivery': {
+        value = maxCombo.value
+        completed = value >= task.threshold
+        break
+      }
+      case 'inventory_efficiency': {
+        const initialTotal = currentLevelConfig.initialInventory.total
+        value = initialTotal > 0 ? Math.round((inventory.total / initialTotal) * 100) : 0
+        if (task.higherIsBetter === false) {
+          completed = value <= task.threshold
+        } else {
+          completed = value >= task.threshold
+        }
+        break
+      }
+      case 'event_handler': {
+        value = eventsHandled.value
+        completed = value >= task.threshold
+        break
+      }
+      case 'perfect_route': {
+        const uniquePoints = new Set(executedSteps.map(s => s.pointId)).size
+        value = uniquePoints
+        completed = executedSteps.length > 0 && uniquePoints === executedSteps.length
+        break
+      }
+      case 'priority_optimizer': {
+        value = usedPriorities.size
+        completed = value >= task.threshold
+        break
+      }
+      case 'speed_demon': {
+        if (turn.value > 0) {
+          const totalDelivered = nonWarehousePoints.reduce((sum, p) => sum + p.delivered, 0)
+          value = Math.round(totalDelivered / turn.value)
+        } else {
+          value = 0
+        }
+        completed = value >= task.threshold
+        break
+      }
     }
 
     return { value, completed, failed }
@@ -198,6 +245,13 @@ export function useGame(levelId: number) {
     Object.keys(urgentDeliveryTurns).forEach(key => {
       delete urgentDeliveryTurns[key]
     })
+
+    comboCount.value = 0
+    maxCombo.value = 0
+    eventsHandled.value = 0
+    priorityChangeCount.value = 0
+    usedPriorities.clear()
+    totalDeliveredThisStep.value = 0
 
     stats.totalDelivered = 0
     stats.gapHandlingEfficiency = 0
@@ -320,6 +374,8 @@ export function useGame(levelId: number) {
     const point = getPointById(pointId)
     if (point && pointId !== 'warehouse') {
       point.priority = priority
+      usedPriorities.add(priority)
+      priorityChangeCount.value++
       updateTaskProgress()
     }
   }
@@ -472,12 +528,21 @@ export function useGame(levelId: number) {
       if (!gapPoints.includes(point.id)) {
         gapPoints.push(point.id)
       }
+      comboCount.value = 0
     } else {
       const idx = gapPoints.indexOf(point.id)
       if (idx !== -1) {
         gapPoints.splice(idx, 1)
       }
+      if (deliveredThisStep > 0) {
+        comboCount.value++
+        if (comboCount.value > maxCombo.value) {
+          maxCombo.value = comboCount.value
+        }
+      }
     }
+
+    totalDeliveredThisStep.value = deliveredThisStep
 
     if (Math.random() < currentLevelConfig.eventProbability && !currentEvent.value) {
       const eventType = getRandomEventType()
@@ -565,6 +630,7 @@ export function useGame(levelId: number) {
       }
     }
 
+    eventsHandled.value++
     currentEvent.value = null
     updateTaskProgress()
   }
@@ -606,18 +672,39 @@ export function useGame(levelId: number) {
       const cond = achievement.condition
 
       switch (cond.type) {
-        case 'efficiency_target':
-          if (cond.higherIsBetter !== false) {
-            if (cond.threshold <= 3) {
-              conditionMet = completedTasksCount >= cond.threshold
-            } else {
-              const totalDemand = nonWarehousePoints.reduce((sum, p) => sum + p.demand, 0)
-              const totalGap = nonWarehousePoints.reduce((sum, p) => sum + Math.max(0, p.demand - p.delivered), 0)
-              const efficiency = totalDemand > 0 ? Math.round((1 - totalGap / totalDemand) * 100) : 100
-              conditionMet = efficiency >= cond.threshold
-            }
-          }
+        case 'efficiency_target': {
+          const totalDemand = nonWarehousePoints.reduce((sum, p) => sum + p.demand, 0)
+          const totalGap = nonWarehousePoints.reduce((sum, p) => sum + Math.max(0, p.demand - p.delivered), 0)
+          const efficiency = totalDemand > 0 ? Math.round((1 - totalGap / totalDemand) * 100) : 100
+          conditionMet = cond.higherIsBetter !== false
+            ? efficiency >= cond.threshold
+            : efficiency <= cond.threshold
           break
+        }
+        case 'task_completion':
+          conditionMet = completedTasksCount >= cond.threshold
+          break
+        case 'all_tasks':
+          conditionMet = completedTasksCount >= currentLevelConfig.tasks.length
+          break
+        case 'star_target':
+          conditionMet = stats.stars >= cond.threshold
+          break
+        case 'score_target':
+          conditionMet = stats.score >= cond.threshold
+          break
+        case 'turn_limit': {
+          const allDone = nonWarehousePoints.every(p => p.delivered >= p.demand)
+          conditionMet = allDone && turn.value <= cond.threshold
+          break
+        }
+        case 'cost_control': {
+          const totalCost = totalTraveledDistance.value
+          conditionMet = cond.higherIsBetter !== false
+            ? totalCost >= cond.threshold
+            : totalCost <= cond.threshold
+          break
+        }
         case 'anomaly_response':
           if (hasAnomalies) {
             const avgTurns = anomalyEntries.reduce((sum, [, t]) => sum + t, 0) / anomalyEntries.length
@@ -637,6 +724,9 @@ export function useGame(levelId: number) {
             : gapRate <= cond.threshold
           break
         }
+        case 'combo_delivery':
+          conditionMet = maxCombo.value >= cond.threshold
+          break
         default:
           conditionMet = completedTasksCount >= 1
       }
@@ -688,28 +778,38 @@ export function useGame(levelId: number) {
     stats.finalInventory = initialTotalInventory > 0 ? Math.round((inventory.total / initialTotalInventory) * 100) : 0
     stats.finalInventory = clamp(stats.finalInventory, 0, 100)
 
-    const taskResults = calculateTaskResults()
-    const unlockedAchievements = checkAchievements(taskResults)
-
-    const taskBonusScore = taskResults.reduce((sum, r) => sum + r.scoreBonus, 0) +
-      unlockedAchievements.reduce((sum, id) => {
-        const ach = currentLevelConfig.achievements.find(a => a.id === id)
-        return sum + (ach?.scoreBonus || 0)
-      }, 0)
-
     const deliveredScore = stats.totalDelivered * 10
     const efficiencyScore = stats.gapHandlingEfficiency
     const redundancyPenalty = Math.max(0, 100 - stats.routeRedundancy)
     const anomalyBonus = stats.anomalyResponseTime > 50 ? (stats.anomalyResponseTime - 50) * 2 : 0
     const gapPenalty = gapPoints.length * 20
 
-    stats.score = deliveredScore + efficiencyScore - redundancyPenalty + anomalyBonus - gapPenalty + taskBonusScore
-    stats.score = Math.max(0, stats.score)
+    const baseScore = deliveredScore + efficiencyScore - redundancyPenalty + anomalyBonus - gapPenalty
+
+    const taskResults = calculateTaskResults()
+    const taskBonusScore = taskResults.reduce((sum, r) => sum + r.scoreBonus, 0)
+
+    const scoreWithTaskBonus = Math.max(0, baseScore + taskBonusScore)
+    stats.score = scoreWithTaskBonus
+    stats.stars = calcStars(scoreWithTaskBonus, currentLevelConfig.targetScore)
+
+    const unlockedAchievements = checkAchievements(taskResults)
+
+    const achievementBonusScore = unlockedAchievements.reduce((sum, id) => {
+      const ach = currentLevelConfig.achievements.find(a => a.id === id)
+      return sum + (ach?.scoreBonus || 0)
+    }, 0)
+
+    const finalScore = Math.max(0, baseScore + taskBonusScore + achievementBonusScore)
+    stats.score = finalScore
+    stats.stars = calcStars(finalScore, currentLevelConfig.targetScore)
+
     stats.turnsUsed = turn.value
-    stats.stars = calcStars(stats.score, currentLevelConfig.targetScore)
     stats.taskResults = taskResults
     stats.unlockedAchievements = unlockedAchievements
-    stats.taskBonusScore = taskBonusScore
+    stats.taskBonusScore = taskBonusScore + achievementBonusScore
+    stats.maxCombo = maxCombo.value
+    stats.eventsHandled = eventsHandled.value
   }
 
   const resetGame = () => {

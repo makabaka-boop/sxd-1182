@@ -14,37 +14,51 @@ const getProgressForTask = (taskId: string) => {
 const formatValue = (task: TaskTarget, value: number): string => {
   switch (task.type as TaskType) {
     case 'turn_limit':
-    case 'urgent_priority':
     case 'anomaly_response':
-      return task.higherIsBetter !== false
-        ? `${value} / ${task.threshold}`
-        : `${value} / ≤${task.threshold}`
     case 'cost_control':
-      return `${Math.round(value)} / ≤${task.threshold}`
+    case 'inventory_efficiency':
+      return task.higherIsBetter === false
+        ? `${Math.round(value)} / ≤${task.threshold}`
+        : `${Math.round(value)} / ≥${task.threshold}`
+    case 'urgent_priority':
+    case 'combo_delivery':
+    case 'event_handler':
+    case 'priority_optimizer':
+    case 'perfect_route':
+    case 'speed_demon':
+      return `${Math.round(value)} / ≥${task.threshold}`
     case 'no_gap':
     case 'efficiency_target':
       return `${Math.round(value)}% / ≥${task.threshold}%`
     default:
-      return `${value} / ${task.threshold}`
+      return `${Math.round(value)} / ${task.threshold}`
   }
 }
 
 const computePercentage = (task: TaskTarget, value: number): number => {
   if (task.threshold <= 0) return 0
 
-  switch (task.type as TaskType) {
-    case 'turn_limit':
-    case 'cost_control':
-    case 'anomaly_response':
-      return Math.min(100, Math.max(0, ((task.threshold - Math.max(0, value - task.threshold * 0)) / task.threshold) * 100))
-    case 'urgent_priority':
-      return Math.min(100, Math.max(0, (value / Math.max(1, task.threshold)) * 100))
-    case 'no_gap':
-    case 'efficiency_target':
-      return Math.min(100, Math.max(0, (value / task.threshold) * 100))
-    default:
-      return Math.min(100, Math.max(0, (value / task.threshold) * 100))
+  const higherIsBetter = task.higherIsBetter !== false
+  const lowerIsBetterTypes: TaskType[] = ['turn_limit', 'cost_control', 'anomaly_response', 'inventory_efficiency']
+  const higherIsBetterTypes: TaskType[] = [
+    'urgent_priority', 'combo_delivery', 'event_handler',
+    'priority_optimizer', 'perfect_route', 'speed_demon',
+    'no_gap', 'efficiency_target'
+  ]
+
+  if (lowerIsBetterTypes.includes(task.type as TaskType) || !higherIsBetter) {
+    if (value <= task.threshold) {
+      return 100
+    }
+    const ratio = task.threshold / value
+    return Math.min(100, Math.max(0, Math.round(ratio * 100)))
   }
+
+  if (higherIsBetterTypes.includes(task.type as TaskType) || higherIsBetter) {
+    return Math.min(100, Math.max(0, Math.round((value / task.threshold) * 100)))
+  }
+
+  return Math.min(100, Math.max(0, Math.round((value / task.threshold) * 100)))
 }
 
 const statusLabel = (status: TaskProgress['status']) => {

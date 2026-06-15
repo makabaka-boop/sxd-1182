@@ -105,7 +105,19 @@ const rarityLabel = (rarity: AchievementRarity) => {
   }
 }
 
-const formatTaskValue = (result: { currentValue: number; threshold: number }) => {
+const formatTaskValue = (result: { currentValue: number; threshold: number }, taskType?: string) => {
+  if (taskType === 'turn_limit' || taskType === 'anomaly_response' || taskType === 'cost_control') {
+    return `${Math.round(result.currentValue)} / ≤${result.threshold}`
+  }
+  if (taskType === 'no_gap' || taskType === 'efficiency_target' || taskType === 'inventory_efficiency') {
+    return `${Math.round(result.currentValue)}% / ≥${result.threshold}%`
+  }
+  if (taskType === 'urgent_priority' || taskType === 'combo_delivery' || taskType === 'event_handler' || taskType === 'priority_optimizer' || taskType === 'perfect_route') {
+    return `${Math.round(result.currentValue)} / ≥${result.threshold}`
+  }
+  if (taskType === 'speed_demon') {
+    return `${Math.round(result.currentValue)} / ≥${result.threshold} 单位/回合`
+  }
   const isPercentage = result.threshold === 100 || (result.threshold > 50 && result.threshold <= 100)
   if (isPercentage) {
     return `${Math.round(result.currentValue)}% / ≥${result.threshold}%`
@@ -115,6 +127,19 @@ const formatTaskValue = (result: { currentValue: number; threshold: number }) =>
   }
   return `${Math.round(result.currentValue)} / ${result.threshold}`
 }
+
+const getTaskType = (taskId: string) => {
+  const task = level.value.tasks.find(t => t.id === taskId)
+  return task?.type
+}
+
+const totalTaskBonus = computed(() => {
+  return taskResults.value.reduce((sum, r) => sum + r.scoreBonus, 0)
+})
+
+const totalAchievementBonus = computed(() => {
+  return unlockedAchievementDetails.value.reduce((sum, a) => sum + a.scoreBonus, 0)
+})
 
 const handleReplay = () => {
   router.push(`/game/${levelId.value}`)
@@ -166,13 +191,18 @@ const handleHome = () => {
           <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
             <span>🎯</span> 任务完成情况
           </h2>
-          <span class="text-sm font-medium px-3 py-1 rounded-full"
-            :class="completedTaskCount === taskResults.length
-              ? 'bg-emerald-100 text-emerald-700'
-              : 'bg-amber-100 text-amber-700'"
-          >
-            {{ completedTaskCount }} / {{ taskResults.length }} 完成
-          </span>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
+              任务加成 +{{ totalTaskBonus }}
+            </span>
+            <span class="text-sm font-medium px-3 py-1 rounded-full"
+              :class="completedTaskCount === taskResults.length
+                ? 'bg-emerald-100 text-emerald-700'
+                : 'bg-amber-100 text-amber-700'"
+            >
+              {{ completedTaskCount }} / {{ taskResults.length }} 完成
+            </span>
+          </div>
         </div>
         <div class="space-y-3">
           <div
@@ -202,7 +232,7 @@ const handleHome = () => {
                 </div>
                 <p class="text-xs text-gray-500 mb-2">{{ task.description }}</p>
                 <div class="flex items-center justify-between mb-1.5">
-                  <span class="text-xs text-gray-600">{{ formatTaskValue(task) }}</span>
+                  <span class="text-xs text-gray-600">{{ formatTaskValue(task, getTaskType(task.taskId)) }}</span>
                 </div>
                 <div class="w-full h-2 bg-white rounded-full overflow-hidden border border-gray-100">
                   <div
@@ -214,7 +244,7 @@ const handleHome = () => {
                       width: `${Math.min(100, task.threshold > 0
                         ? (task.completed
                             ? 100
-                            : (task.threshold < 10
+                            : (task.threshold < 10 && !['combo_delivery', 'urgent_priority', 'event_handler', 'priority_optimizer', 'perfect_route', 'speed_demon'].includes(getTaskType(task.taskId) || '')
                                 ? ((task.threshold - Math.max(0, task.currentValue - task.threshold)) / task.threshold) * 100
                                 : (task.currentValue / task.threshold) * 100))
                         : 0)}%`
@@ -232,9 +262,14 @@ const handleHome = () => {
           <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
             <span>🏅</span> 解锁成就
           </h2>
-          <span class="text-sm font-medium px-3 py-1 rounded-full bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700">
-            {{ unlockedAchievementDetails.length }} 个
-          </span>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700">
+              成就加成 +{{ totalAchievementBonus }}
+            </span>
+            <span class="text-sm font-medium px-3 py-1 rounded-full bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700">
+              {{ unlockedAchievementDetails.length }} 个
+            </span>
+          </div>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div
@@ -258,6 +293,29 @@ const handleHome = () => {
                   +{{ achievement.scoreBonus }} 奖励分
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="stats.taskBonusScore > 0" class="mb-8">
+        <div class="bg-gradient-to-r from-emerald-50 to-sky-50 rounded-2xl p-5 border border-emerald-100">
+          <h3 class="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+            <span>📊</span> 加分明细
+          </h3>
+          <div class="space-y-2 text-sm">
+            <div class="flex justify-between items-center">
+              <span class="text-gray-600">任务完成奖励</span>
+              <span class="font-semibold text-emerald-600">+{{ totalTaskBonus }}</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-gray-600">成就解锁奖励</span>
+              <span class="font-semibold text-amber-600">+{{ totalAchievementBonus }}</span>
+            </div>
+            <div class="h-px bg-emerald-100 my-2"></div>
+            <div class="flex justify-between items-center">
+              <span class="font-semibold text-gray-700">合计额外加成</span>
+              <span class="font-bold text-lg text-emerald-600">+{{ stats.taskBonusScore }}</span>
             </div>
           </div>
         </div>

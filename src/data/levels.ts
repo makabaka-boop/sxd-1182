@@ -273,6 +273,26 @@ export const LEVELS: LevelConfig[] = [
         threshold: 2000,
         scoreBonus: 100,
         higherIsBetter: false
+      },
+      {
+        id: 'l1-combo',
+        type: 'combo_delivery',
+        name: '连击配送',
+        description: '连续 3 次成功配送（无缺口）',
+        icon: '🔥',
+        threshold: 3,
+        scoreBonus: 120,
+        higherIsBetter: true
+      },
+      {
+        id: 'l1-inventory-efficiency',
+        type: 'inventory_efficiency',
+        name: '库存大师',
+        description: '游戏结束时库存剩余率不超过 30%',
+        icon: '📦',
+        threshold: 30,
+        scoreBonus: 80,
+        higherIsBetter: false
       }
     ],
     achievements: [
@@ -283,8 +303,38 @@ export const LEVELS: LevelConfig[] = [
         description: '首次完成新手村关卡',
         icon: '🌟',
         rarity: 'common',
-        condition: { type: 'efficiency_target', threshold: 70, higherIsBetter: true },
+        condition: { type: 'star_target', threshold: 1, higherIsBetter: true },
         scoreBonus: 50
+      },
+      {
+        id: 'l1-two-star',
+        levelId: 1,
+        name: '小有成就',
+        description: '获得两星评价',
+        icon: '⭐',
+        rarity: 'common',
+        condition: { type: 'star_target', threshold: 2, higherIsBetter: true },
+        scoreBonus: 100
+      },
+      {
+        id: 'l1-three-star',
+        levelId: 1,
+        name: '三星新手',
+        description: '获得三星评价',
+        icon: '✨',
+        rarity: 'rare',
+        condition: { type: 'star_target', threshold: 3, higherIsBetter: true },
+        scoreBonus: 200
+      },
+      {
+        id: 'l1-task-master',
+        levelId: 1,
+        name: '任务达人',
+        description: '完成 4 个以上关卡任务',
+        icon: '🎯',
+        rarity: 'rare',
+        condition: { type: 'task_completion', threshold: 4, higherIsBetter: true },
+        scoreBonus: 180
       },
       {
         id: 'l1-perfect',
@@ -293,7 +343,7 @@ export const LEVELS: LevelConfig[] = [
         description: '完成所有关卡任务',
         icon: '💎',
         rarity: 'epic',
-        condition: { type: 'efficiency_target', threshold: 3, higherIsBetter: true },
+        condition: { type: 'all_tasks', threshold: 5, higherIsBetter: true },
         scoreBonus: 300
       }
     ]
@@ -340,9 +390,49 @@ export const LEVELS: LevelConfig[] = [
         threshold: 7,
         scoreBonus: 150,
         higherIsBetter: false
+      },
+      {
+        id: 'l2-event-handler',
+        type: 'event_handler',
+        name: '事件处理专家',
+        description: '成功处理至少 2 个随机事件',
+        icon: '🎲',
+        threshold: 2,
+        scoreBonus: 160,
+        higherIsBetter: true
+      },
+      {
+        id: 'l2-no-gap',
+        type: 'no_gap',
+        name: '零缺口感叹',
+        description: '所有点位 100% 满足需求',
+        icon: '💯',
+        threshold: 100,
+        scoreBonus: 250,
+        higherIsBetter: true
+      },
+      {
+        id: 'l2-priority-optimizer',
+        type: 'priority_optimizer',
+        name: '优先级优化师',
+        description: '至少设置 3 个不同优先级的点位',
+        icon: '📊',
+        threshold: 3,
+        scoreBonus: 120,
+        higherIsBetter: true
       }
     ],
     achievements: [
+      {
+        id: 'l2-first-clear',
+        levelId: 2,
+        name: '商业新秀',
+        description: '首次通关商业街',
+        icon: '🏪',
+        rarity: 'common',
+        condition: { type: 'star_target', threshold: 1, higherIsBetter: true },
+        scoreBonus: 80
+      },
       {
         id: 'l2-crisis-manager',
         levelId: 2,
@@ -354,14 +444,44 @@ export const LEVELS: LevelConfig[] = [
         scoreBonus: 200
       },
       {
+        id: 'l2-three-star',
+        levelId: 2,
+        name: '三星商人',
+        description: '获得三星评价',
+        icon: '⭐',
+        rarity: 'rare',
+        condition: { type: 'star_target', threshold: 3, higherIsBetter: true },
+        scoreBonus: 250
+      },
+      {
+        id: 'l2-task-master',
+        levelId: 2,
+        name: '任务达人',
+        description: '完成 5 个以上关卡任务',
+        icon: '🎯',
+        rarity: 'epic',
+        condition: { type: 'task_completion', threshold: 5, higherIsBetter: true },
+        scoreBonus: 280
+      },
+      {
         id: 'l2-master',
         levelId: 2,
         name: '商业大亨',
         description: '完成商业街全部任务',
         icon: '👑',
         rarity: 'epic',
-        condition: { type: 'efficiency_target', threshold: 3, higherIsBetter: true },
+        condition: { type: 'all_tasks', threshold: 6, higherIsBetter: true },
         scoreBonus: 400
+      },
+      {
+        id: 'l2-legendary',
+        levelId: 2,
+        name: '商业传奇',
+        description: '三星通关并完成所有任务',
+        icon: '🌟',
+        rarity: 'legendary',
+        condition: { type: 'score_target', threshold: 1500, higherIsBetter: true },
+        scoreBonus: 600
       }
     ]
   },
@@ -407,9 +527,59 @@ export const LEVELS: LevelConfig[] = [
         threshold: 1.5,
         scoreBonus: 250,
         higherIsBetter: false
+      },
+      {
+        id: 'l3-combo',
+        type: 'combo_delivery',
+        name: '连击大师',
+        description: '连续 5 次成功配送',
+        icon: '🔥',
+        threshold: 5,
+        scoreBonus: 200,
+        higherIsBetter: true
+      },
+      {
+        id: 'l3-turn-limit',
+        type: 'turn_limit',
+        name: '极速度假',
+        description: '在 10 回合内完成全部补货',
+        icon: '⏱️',
+        threshold: 10,
+        scoreBonus: 180,
+        higherIsBetter: false
+      },
+      {
+        id: 'l3-event-handler',
+        type: 'event_handler',
+        name: '应急专家',
+        description: '成功处理至少 3 个随机事件',
+        icon: '🎲',
+        threshold: 3,
+        scoreBonus: 180,
+        higherIsBetter: true
+      },
+      {
+        id: 'l3-speed-demon',
+        type: 'speed_demon',
+        name: '速度恶魔',
+        description: '每回合平均配送量达到 15 以上',
+        icon: '🚀',
+        threshold: 15,
+        scoreBonus: 160,
+        higherIsBetter: true
       }
     ],
     achievements: [
+      {
+        id: 'l3-first-clear',
+        levelId: 3,
+        name: '度假玩家',
+        description: '首次通关度假区',
+        icon: '🏖️',
+        rarity: 'common',
+        condition: { type: 'star_target', threshold: 1, higherIsBetter: true },
+        scoreBonus: 100
+      },
       {
         id: 'l3-vacation-hero',
         levelId: 3,
@@ -421,13 +591,43 @@ export const LEVELS: LevelConfig[] = [
         scoreBonus: 300
       },
       {
+        id: 'l3-three-star',
+        levelId: 3,
+        name: '三星调度',
+        description: '获得三星评价',
+        icon: '⭐',
+        rarity: 'rare',
+        condition: { type: 'star_target', threshold: 3, higherIsBetter: true },
+        scoreBonus: 300
+      },
+      {
+        id: 'l3-cost-master',
+        levelId: 3,
+        name: '成本大师',
+        description: '路线消耗控制在阈值内且零缺口',
+        icon: '💰',
+        rarity: 'epic',
+        condition: { type: 'cost_control', threshold: 5500, higherIsBetter: false },
+        scoreBonus: 350
+      },
+      {
+        id: 'l3-task-master',
+        levelId: 3,
+        name: '任务狂魔',
+        description: '完成 6 个以上关卡任务',
+        icon: '🎯',
+        rarity: 'epic',
+        condition: { type: 'task_completion', threshold: 6, higherIsBetter: true },
+        scoreBonus: 400
+      },
+      {
         id: 'l3-legend',
         levelId: 3,
         name: '传说调度',
         description: '完成度假区全部任务',
         icon: '🌈',
         rarity: 'legendary',
-        condition: { type: 'efficiency_target', threshold: 3, higherIsBetter: true },
+        condition: { type: 'all_tasks', threshold: 7, higherIsBetter: true },
         scoreBonus: 500
       }
     ]
@@ -474,9 +674,69 @@ export const LEVELS: LevelConfig[] = [
         threshold: 8000,
         scoreBonus: 280,
         higherIsBetter: false
+      },
+      {
+        id: 'l4-anomaly-response',
+        type: 'anomaly_response',
+        name: '神速响应',
+        description: '异常点位平均响应不超过 1 回合',
+        icon: '⚡',
+        threshold: 1,
+        scoreBonus: 320,
+        higherIsBetter: false
+      },
+      {
+        id: 'l4-combo',
+        type: 'combo_delivery',
+        name: '超神连击',
+        description: '连续 6 次成功配送',
+        icon: '🔥',
+        threshold: 6,
+        scoreBonus: 250,
+        higherIsBetter: true
+      },
+      {
+        id: 'l4-event-handler',
+        type: 'event_handler',
+        name: '风云人物',
+        description: '成功处理至少 4 个随机事件',
+        icon: '🎲',
+        threshold: 4,
+        scoreBonus: 220,
+        higherIsBetter: true
+      },
+      {
+        id: 'l4-speed-demon',
+        type: 'speed_demon',
+        name: '速度之魔',
+        description: '每回合平均配送量达到 20 以上',
+        icon: '💨',
+        threshold: 20,
+        scoreBonus: 200,
+        higherIsBetter: true
+      },
+      {
+        id: 'l4-priority-optimizer',
+        type: 'priority_optimizer',
+        name: '运筹帷幄',
+        description: '设置至少 5 个不同优先级的点位',
+        icon: '📊',
+        threshold: 5,
+        scoreBonus: 180,
+        higherIsBetter: true
       }
     ],
     achievements: [
+      {
+        id: 'l4-first-clear',
+        levelId: 4,
+        name: '都市新人',
+        description: '首次通关城市中心',
+        icon: '🌆',
+        rarity: 'common',
+        condition: { type: 'star_target', threshold: 1, higherIsBetter: true },
+        scoreBonus: 150
+      },
       {
         id: 'l4-city-master',
         levelId: 4,
@@ -484,8 +744,38 @@ export const LEVELS: LevelConfig[] = [
         description: '达成城市中心关卡三星评价',
         icon: '🌆',
         rarity: 'epic',
-        condition: { type: 'efficiency_target', threshold: 85, higherIsBetter: true },
+        condition: { type: 'star_target', threshold: 3, higherIsBetter: true },
         scoreBonus: 400
+      },
+      {
+        id: 'l4-no-gap-hero',
+        levelId: 4,
+        name: '零缺口英雄',
+        description: '城市中心全点位零缺口',
+        icon: '💪',
+        rarity: 'epic',
+        condition: { type: 'no_gap', threshold: 100, higherIsBetter: true },
+        scoreBonus: 450
+      },
+      {
+        id: 'l4-speed-king',
+        levelId: 4,
+        name: '速度之王',
+        description: '10 回合内完成且零缺口',
+        icon: '👑',
+        rarity: 'epic',
+        condition: { type: 'turn_limit', threshold: 10, higherIsBetter: false },
+        scoreBonus: 500
+      },
+      {
+        id: 'l4-task-master',
+        levelId: 4,
+        name: '任务宗师',
+        description: '完成 7 个以上关卡任务',
+        icon: '🎯',
+        rarity: 'epic',
+        condition: { type: 'task_completion', threshold: 7, higherIsBetter: true },
+        scoreBonus: 550
       },
       {
         id: 'l4-ultimate',
@@ -494,8 +784,18 @@ export const LEVELS: LevelConfig[] = [
         description: '完成全部任务并解锁城市中心所有成就',
         icon: '🏅',
         rarity: 'legendary',
-        condition: { type: 'efficiency_target', threshold: 3, higherIsBetter: true },
+        condition: { type: 'all_tasks', threshold: 8, higherIsBetter: true },
         scoreBonus: 800
+      },
+      {
+        id: 'l4-legendary-score',
+        levelId: 4,
+        name: '传奇分数',
+        description: '单局得分超过 2500 分',
+        icon: '🌟',
+        rarity: 'legendary',
+        condition: { type: 'score_target', threshold: 2500, higherIsBetter: true },
+        scoreBonus: 1000
       }
     ]
   }

@@ -35,6 +35,38 @@ const taskProgress = () => {
 const bestTaskRecord = () => {
   return props.bestScore?.bestTaskRecord ?? []
 }
+
+const highestAchievement = () => {
+  if (!props.bestScore?.unlockedAchievementIds?.length) return null
+  const achievements = props.level.achievements
+  if (!achievements) return null
+
+  const rarityOrder: ('common' | 'rare' | 'epic' | 'legendary')[] = ['common', 'rare', 'epic', 'legendary']
+  let highest: any = null
+  let highestRank = -1
+
+  props.bestScore.unlockedAchievementIds.forEach(id => {
+    const ach = achievements.find((a: any) => a.id === id)
+    if (ach) {
+      const rank = rarityOrder.indexOf(ach.rarity)
+      if (rank > highestRank) {
+        highest = ach
+        highestRank = rank
+      }
+    }
+  })
+
+  return highest
+}
+
+const rarityBgClass = (rarity: string) => {
+  switch (rarity) {
+    case 'legendary': return 'bg-gradient-to-r from-amber-400 to-orange-500'
+    case 'epic': return 'bg-gradient-to-r from-purple-500 to-fuchsia-500'
+    case 'rare': return 'bg-gradient-to-r from-blue-500 to-cyan-500'
+    default: return 'bg-gradient-to-r from-slate-400 to-gray-500'
+  }
+}
 </script>
 
 <template>
@@ -104,6 +136,19 @@ const bestTaskRecord = () => {
             class="h-full rounded-full bg-gradient-to-r from-emerald-300 to-green-400 transition-all duration-500"
             :style="{ width: `${taskProgress().total > 0 ? (taskProgress().completed / taskProgress().total) * 100 : 0}%` }"
           ></div>
+        </div>
+      </div>
+
+      <div v-if="highestAchievement()" class="mt-3">
+        <div class="text-xs text-blue-100 font-medium flex items-center gap-1 mb-1.5">
+          <span>🏅</span> 最高成就
+        </div>
+        <div
+          class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-white text-xs font-medium"
+          :class="rarityBgClass(highestAchievement()!.rarity)"
+        >
+          <span class="text-base">{{ highestAchievement()!.icon }}</span>
+          <span class="font-medium">{{ highestAchievement()!.name }}</span>
         </div>
       </div>
 
