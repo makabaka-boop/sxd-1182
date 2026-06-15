@@ -32,6 +32,9 @@ export function useGame(levelId: number) {
   })
   const gapPoints = reactive<string[]>([])
   const anomalyResponseTurns = reactive<Record<string, number>>({})
+  const anomalyStartTurns = reactive<Record<string, number>>({})
+  const totalTraveledDistance = ref(0)
+  const executedSteps = reactive<RouteStep[]>([])
 
   let currentLevelConfig = LEVELS.find(l => l.id === levelId) || LEVELS[0]
 
@@ -54,15 +57,20 @@ export function useGame(levelId: number) {
     routes.push(...currentLevelConfig.routes.map(r => ({ ...r })))
 
     plannedRoute.length = 0
+    executedSteps.length = 0
     currentEvent.value = null
     isPaused.value = false
     isGameOver.value = false
     isExecuting.value = false
     animatingPointId.value = null
+    totalTraveledDistance.value = 0
     gapPoints.length = 0
 
     Object.keys(anomalyResponseTurns).forEach(key => {
       delete anomalyResponseTurns[key]
+    })
+    Object.keys(anomalyStartTurns).forEach(key => {
+      delete anomalyStartTurns[key]
     })
 
     stats.totalDelivered = 0
@@ -89,6 +97,37 @@ export function useGame(levelId: number) {
     return point ? point.position : { x: 0, y: 0 }
   }
 
+  const getLastExecutedPosition = (): { x: number; y: number } => {
+    if (executedSteps.length === 0) {
+      const warehouse = getPointById('warehouse')
+      return warehouse ? warehouse.position : { x: 0, y: 0 }
+    }
+    const lastStep = executedSteps[executedSteps.length - 1]
+    const point = getPointById(lastStep.pointId)
+    return point ? point.position : { x: 0, y: 0 }
+  }
+
+  const isRouteBlocked = (fromId: string, toId: string): boolean => {
+    const route = routes.find(r =>
+      (r.from === fromId && r.to === toId) || (r.from === toId && r.to === fromId)
+    )
+    return route?.blocked ?? false
+  }
+
+  const getEffectiveDistance = (fromId: string, toId: string): number => {
+    const fromPoint = getPointById(fromId)
+    const toPoint = getPointById(toId)
+    if (!fromPoint || !toPoint) return 0
+
+    const directDistance = calcDistance(fromPoint.position, toPoint.position)
+
+    if (isRouteBlocked(fromId, toId)) {
+      return Math.round(directDistance * 1.8)
+    }
+
+    return directDistance
+  }
+
   const addPointToRoute = (pointId: string) => {
     if (pointId === 'warehouse') return
     if (plannedRoute.some(step => step.pointId === pointId)) return
@@ -98,7 +137,8 @@ export function useGame(levelId: number) {
 
     const fromPos = getCurrentPosition()
     const toPos = point.position
-    const distance = calcDistance(fromPos, toPos)
+    const fromId = plannedRoute.length === 0 ? 'warehouse' : plannedRoute[plannedRoute.length - 1].pointId
+    const distance = getEffectiveDistance(fromId, pointId)
 
     plannedRoute.push({
       id: uid(),
@@ -129,16 +169,16 @@ export function useGame(levelId: number) {
   const recalculateRouteCosts = () => {
     if (plannedRoute.length === 0) return
 
-    const warehouse = getPointById('warehouse')
-    if (!warehouse) return
+    let prevId = executedSteps.length > 0
+      ? executedSteps[executedSteps.length - 1].pointId
+      : 'warehouse'
 
-    let prevPos = warehouse.position
     plannedRoute.forEach((step, index) => {
       const point = getPointById(step.pointId)
       if (point) {
-        step.estimatedCost = calcDistance(prevPos, point.position)
+        step.estimatedCost = getEffectiveDistance(prevId, step.pointId)
         step.order = index
-        prevPos = point.position
+        prevId = step.pointId
       }
     })
   }
@@ -151,6 +191,36 @@ export function useGame(levelId: number) {
   }
 
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+  const consumeTravelInventory = (distance: number) => {
+    const decayRate = 0.003
+    const loss = Math.round(inventory.total * decayRate * (distance / 100))
+    if (loss <= 0) return
+
+    let remainingLoss = loss
+    const ratioCola = 4
+    const ratioJuice = 3
+    const ratioIcecream = 3
+    const totalRatio = ratioCola + ratioJuice + ratioIcecream
+
+    let colaLoss = Math.min(Math.round(remainingLoss * ratioCola / totalRatio), inventory.cola)
+    let juiceLoss = Math.min(Math.round(remainingLoss * ratioJuice / totalRatio), inventory.juice)
+    let iceLoss = Math.min(Math.round(remainingLoss * ratioIcecream / totalRatio), inventory.icecream)
+
+    let totalLoss = colaLoss + juiceLoss + iceLoss
+
+    while (totalLoss < remainingLoss && inventory.total > totalLoss) {
+      if (inventory.cola > colaLoss) { colaLoss++; totalLoss++ }
+      else if (inventory.juice > juiceLoss) { juiceLoss++; totalLoss++ }
+      else if (inventory.icecream > iceLoss) { iceLoss++; totalLoss++ }
+      else break
+    }
+
+    inventory.cola -= colaLoss
+    inventory.juice -= juiceLoss
+    inventory.icecream -= iceLoss
+    inventory.total = inventory.cola + inventory.juice + inventory.icecream
+  }
 
   const executeRouteStep = async () => {
     if (plannedRoute.length === 0 || isExecuting.value || isGameOver.value || isPaused.value) return
@@ -167,63 +237,96 @@ export function useGame(levelId: number) {
     animatingPointId.value = point.id
     await sleep(800)
 
-    let needDeliver = point.demand - point.delivered
+    const fromId = executedSteps.length > 0
+      ? executedSteps[executedSteps.length - 1].pointId
+      : 'warehouse'
+    const travelDistance = getEffectiveDistance(fromId, point.id)
+    totalTraveledDistance.value += travelDistance
+    consumeTravelInventory(travelDistance)
 
-    if (point.status === 'boost') {
-      needDeliver = point.demand * 2 - point.delivered
-    }
+    let deliveredThisStep = 0
 
-    let actualDeliver = Math.min(needDeliver, inventory.total)
+    if (point.status === 'anomaly') {
+      const repairCost = Math.round(inventory.total * 0.05)
+      const actualRepair = Math.min(repairCost, inventory.total)
 
-    if (actualDeliver > 0) {
-      const ratioCola = 4
-      const ratioJuice = 3
-      const ratioIcecream = 3
-      const totalRatio = ratioCola + ratioJuice + ratioIcecream
-
-      let colaPart = Math.min(Math.round(actualDeliver * ratioCola / totalRatio), inventory.cola)
-      let juicePart = Math.min(Math.round(actualDeliver * ratioJuice / totalRatio), inventory.juice)
-      let icecreamPart = Math.min(Math.round(actualDeliver * ratioIcecream / totalRatio), inventory.icecream)
-
-      let deliveredSum = colaPart + juicePart + icecreamPart
-
-      while (deliveredSum < actualDeliver && (inventory.cola > colaPart || inventory.juice > juicePart || inventory.icecream > icecreamPart)) {
-        if (inventory.cola > colaPart) {
-          colaPart++
-          deliveredSum++
-        } else if (inventory.juice > juicePart) {
-          juicePart++
-          deliveredSum++
-        } else if (inventory.icecream > icecreamPart) {
-          icecreamPart++
-          deliveredSum++
-        } else {
-          break
-        }
+      if (actualRepair > 0) {
+        const perType = Math.floor(actualRepair / 3)
+        inventory.cola = Math.max(0, inventory.cola - perType)
+        inventory.juice = Math.max(0, inventory.juice - perType)
+        inventory.icecream = Math.max(0, inventory.icecream - (actualRepair - perType * 2))
+        inventory.total = inventory.cola + inventory.juice + inventory.icecream
       }
 
-      while (deliveredSum > actualDeliver) {
-        if (icecreamPart > 0) {
-          icecreamPart--
-          deliveredSum--
-        } else if (juicePart > 0) {
-          juicePart--
-          deliveredSum--
-        } else if (colaPart > 0) {
-          colaPart--
-          deliveredSum--
-        } else {
-          break
-        }
+      const anomalyDuration = turn.value - (anomalyStartTurns[point.id] ?? turn.value)
+      anomalyResponseTurns[point.id] = anomalyDuration
+      point.status = 'normal'
+
+      deliveredThisStep = 0
+    } else {
+      let needDeliver = point.demand - point.delivered
+
+      if (point.status === 'boost') {
+        needDeliver = point.demand * 2 - point.delivered
       }
 
-      actualDeliver = deliveredSum
-      inventory.cola -= colaPart
-      inventory.juice -= juicePart
-      inventory.icecream -= icecreamPart
-      inventory.total = inventory.cola + inventory.juice + inventory.icecream
+      let actualDeliver = Math.min(needDeliver, inventory.total)
 
-      point.delivered += actualDeliver
+      if (actualDeliver > 0) {
+        const ratioCola = 4
+        const ratioJuice = 3
+        const ratioIcecream = 3
+        const totalRatio = ratioCola + ratioJuice + ratioIcecream
+
+        let colaPart = Math.min(Math.round(actualDeliver * ratioCola / totalRatio), inventory.cola)
+        let juicePart = Math.min(Math.round(actualDeliver * ratioJuice / totalRatio), inventory.juice)
+        let icecreamPart = Math.min(Math.round(actualDeliver * ratioIcecream / totalRatio), inventory.icecream)
+
+        let deliveredSum = colaPart + juicePart + icecreamPart
+
+        while (deliveredSum < actualDeliver && (inventory.cola > colaPart || inventory.juice > juicePart || inventory.icecream > icecreamPart)) {
+          if (inventory.cola > colaPart) {
+            colaPart++
+            deliveredSum++
+          } else if (inventory.juice > juicePart) {
+            juicePart++
+            deliveredSum++
+          } else if (inventory.icecream > icecreamPart) {
+            icecreamPart++
+            deliveredSum++
+          } else {
+            break
+          }
+        }
+
+        while (deliveredSum > actualDeliver) {
+          if (icecreamPart > 0) {
+            icecreamPart--
+            deliveredSum--
+          } else if (juicePart > 0) {
+            juicePart--
+            deliveredSum--
+          } else if (colaPart > 0) {
+            colaPart--
+            deliveredSum--
+          } else {
+            break
+          }
+        }
+
+        actualDeliver = deliveredSum
+        inventory.cola -= colaPart
+        inventory.juice -= juicePart
+        inventory.icecream -= icecreamPart
+        inventory.total = inventory.cola + inventory.juice + inventory.icecream
+
+        point.delivered += actualDeliver
+        deliveredThisStep = actualDeliver
+      }
+
+      if (point.status === 'boost') {
+        point.status = 'normal'
+      }
     }
 
     if (point.delivered < point.demand) {
@@ -232,21 +335,17 @@ export function useGame(levelId: number) {
       }
     }
 
-    if (point.status === 'anomaly') {
-      anomalyResponseTurns[point.id] = turn.value
-      point.status = 'normal'
-    }
-
-    if (point.status === 'boost') {
-      point.status = 'normal'
-    }
-
     if (Math.random() < currentLevelConfig.eventProbability && !currentEvent.value) {
       const eventType = getRandomEventType()
       const nonWarehousePoints = points.filter(p => p.id !== 'warehouse')
       const targetPoint = nonWarehousePoints[Math.floor(Math.random() * nonWarehousePoints.length)]
       if (targetPoint) {
-        currentEvent.value = generateEvent(eventType, targetPoint.id, targetPoint.name)
+        const event = generateEvent(eventType, targetPoint.id, targetPoint.name)
+        currentEvent.value = event
+
+        if (eventType === 'anomaly') {
+          anomalyStartTurns[targetPoint.id] = turn.value + 1
+        }
       }
     }
 
@@ -254,7 +353,10 @@ export function useGame(levelId: number) {
     animatingPointId.value = null
     isExecuting.value = false
 
-    plannedRoute.shift()
+    const [executedStep] = plannedRoute.splice(0, 1)
+    if (executedStep) {
+      executedSteps.push(executedStep)
+    }
     recalculateRouteCosts()
 
     const nonWarehousePoints = points.filter(p => p.id !== 'warehouse')
@@ -286,16 +388,33 @@ export function useGame(levelId: number) {
               route.blocked = true
             }
           })
+          recalculateRouteCosts()
           break
         case 'anomaly':
           if (targetPoint) {
             targetPoint.status = 'anomaly'
+            anomalyStartTurns[targetPoint.id] = turn.value
           }
           break
         case 'boost_refill':
           if (targetPoint) {
             targetPoint.status = 'boost'
           }
+          break
+      }
+    } else {
+      switch (event.type) {
+        case 'demand_surge':
+          break
+        case 'route_block':
+          turn.value++
+          break
+        case 'anomaly':
+          if (targetPoint) {
+            targetPoint.demand = Math.max(0, targetPoint.demand - Math.round(targetPoint.demand * 0.3))
+          }
+          break
+        case 'boost_refill':
           break
       }
     }
@@ -319,18 +438,6 @@ export function useGame(levelId: number) {
     stats.gapHandlingEfficiency = clamp(stats.gapHandlingEfficiency, 0, 100)
 
     const warehouse = getPointById('warehouse')
-    let actualRouteLength = 0
-    if (warehouse) {
-      let prevPos = warehouse.position
-      plannedRoute.forEach(step => {
-        const point = getPointById(step.pointId)
-        if (point) {
-          actualRouteLength += calcDistance(prevPos, point.position)
-          prevPos = point.position
-        }
-      })
-    }
-
     let theoreticalMinRoute = 0
     if (warehouse) {
       const distances = nonWarehousePoints.map(p => calcDistance(warehouse.position, p.position))
@@ -340,6 +447,7 @@ export function useGame(levelId: number) {
       }
     }
 
+    const actualRouteLength = totalTraveledDistance.value
     stats.routeRedundancy = theoreticalMinRoute > 0 && actualRouteLength > 0
       ? Math.round((theoreticalMinRoute / actualRouteLength) * 100)
       : 100
@@ -379,6 +487,7 @@ export function useGame(levelId: number) {
     points,
     routes,
     plannedRoute,
+    executedSteps,
     currentEvent,
     isPaused,
     isGameOver,
@@ -387,6 +496,7 @@ export function useGame(levelId: number) {
     stats,
     gapPoints,
     anomalyResponseTurns,
+    totalTraveledDistance,
     initGame,
     addPointToRoute,
     removePointFromRoute,
@@ -397,6 +507,8 @@ export function useGame(levelId: number) {
     handleEventOption,
     togglePause,
     calculateFinalStats,
-    resetGame
+    resetGame,
+    isRouteBlocked,
+    getEffectiveDistance,
   }
 }

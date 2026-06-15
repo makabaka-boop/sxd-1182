@@ -4,10 +4,13 @@ import type { Inventory } from '@/types'
 
 const props = defineProps<{
   inventory: Inventory
+  initialTotal?: number
 }>()
 
+const initial = computed(() => props.initialTotal ?? 200)
+
 const totalPercent = computed(() => {
-  return Math.min((props.inventory.total / 200) * 100, 100)
+  return Math.min((props.inventory.total / initial.value) * 100, 100)
 })
 </script>
 
@@ -37,7 +40,7 @@ const totalPercent = computed(() => {
     <div>
       <div class="flex justify-between text-sm mb-1">
         <span>总库存</span>
-        <span class="font-semibold">{{ inventory.total }} / 200</span>
+        <span class="font-semibold">{{ inventory.total }} / {{ initial }}</span>
       </div>
       <div class="w-full bg-white/20 rounded-full h-3 overflow-hidden">
         <div
@@ -45,6 +48,10 @@ const totalPercent = computed(() => {
           :style="{ width: totalPercent + '%' }"
         ></div>
       </div>
+    </div>
+    <div class="mt-3 pt-3 border-t border-white/20 text-xs text-sky-100 flex items-center gap-1">
+      <span>💡</span>
+      <span>运输过程中冷饮会随距离融化损耗</span>
     </div>
   </div>
 </template>
