@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { LevelConfig, ScoreRecord } from '@/types'
 
-defineProps<{
+const props = defineProps<{
   level: LevelConfig
   bestScore: ScoreRecord | null
 }>()
@@ -16,6 +16,24 @@ const renderStars = (count: number) => {
     stars.push(i < count ? '⭐' : '☆')
   }
   return stars
+}
+
+const unlockedAchievementCount = () => {
+  return props.bestScore?.unlockedAchievementIds?.length ?? 0
+}
+
+const totalAchievementCount = () => {
+  return props.level.achievements?.length ?? 0
+}
+
+const taskProgress = () => {
+  const completed = props.bestScore?.taskCompletedCount ?? 0
+  const total = props.bestScore?.totalTaskCount ?? props.level.tasks?.length ?? 0
+  return { completed, total }
+}
+
+const bestTaskRecord = () => {
+  return props.bestScore?.bestTaskRecord ?? []
 }
 </script>
 
@@ -42,7 +60,7 @@ const renderStars = (count: number) => {
         {{ level.description }}
       </p>
 
-      <div class="bg-white/20 backdrop-blur-sm rounded-xl p-3 space-y-2">
+      <div class="bg-white/20 backdrop-blur-sm rounded-xl p-3 space-y-2.5">
         <div class="flex justify-between text-sm">
           <span class="text-blue-100">最佳分数</span>
           <span class="text-white font-bold">
@@ -52,6 +70,56 @@ const renderStars = (count: number) => {
         <div class="flex justify-between text-sm">
           <span class="text-blue-100">目标分数</span>
           <span class="text-yellow-100 font-bold">{{ level.targetScore }}</span>
+        </div>
+
+        <div class="h-px bg-white/20 my-1"></div>
+
+        <div class="flex justify-between text-sm items-center">
+          <span class="text-blue-100 flex items-center gap-1.5">
+            <span>🏅</span> 成就
+          </span>
+          <span class="text-white font-bold">
+            {{ unlockedAchievementCount() }} / {{ totalAchievementCount() }}
+          </span>
+        </div>
+
+        <div class="w-full h-1.5 bg-white/20 rounded-full overflow-hidden">
+          <div
+            class="h-full rounded-full bg-gradient-to-r from-amber-300 to-yellow-400 transition-all duration-500"
+            :style="{ width: `${totalAchievementCount() > 0 ? (unlockedAchievementCount() / totalAchievementCount()) * 100 : 0}%` }"
+          ></div>
+        </div>
+
+        <div class="flex justify-between text-sm items-center">
+          <span class="text-blue-100 flex items-center gap-1.5">
+            <span>🎯</span> 任务
+          </span>
+          <span class="text-white font-bold">
+            {{ taskProgress().completed }} / {{ taskProgress().total }}
+          </span>
+        </div>
+
+        <div class="w-full h-1.5 bg-white/20 rounded-full overflow-hidden">
+          <div
+            class="h-full rounded-full bg-gradient-to-r from-emerald-300 to-green-400 transition-all duration-500"
+            :style="{ width: `${taskProgress().total > 0 ? (taskProgress().completed / taskProgress().total) * 100 : 0}%` }"
+          ></div>
+        </div>
+      </div>
+
+      <div v-if="bestTaskRecord().length > 0" class="mt-3 space-y-1.5">
+        <div class="text-xs text-blue-100 font-medium flex items-center gap-1">
+          <span>📋</span> 最佳任务记录
+        </div>
+        <div class="flex flex-wrap gap-1.5">
+          <span
+            v-for="record in bestTaskRecord().slice(0, 3)"
+            :key="record.taskId"
+            class="text-[10px] px-2 py-1 rounded-full bg-white/25 text-white font-medium backdrop-blur-sm"
+            :title="`${record.taskName}: ${record.currentValue} / ${record.threshold}`"
+          >
+            {{ record.taskName }}
+          </span>
         </div>
       </div>
     </div>

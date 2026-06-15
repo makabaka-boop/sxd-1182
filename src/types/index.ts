@@ -4,6 +4,18 @@ export type PointStatus = 'normal' | 'anomaly' | 'boost' | 'blocked'
 
 export type EventType = 'demand_surge' | 'route_block' | 'anomaly' | 'boost_refill'
 
+export type TaskType =
+  | 'turn_limit'
+  | 'urgent_priority'
+  | 'anomaly_response'
+  | 'cost_control'
+  | 'no_gap'
+  | 'efficiency_target'
+
+export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed'
+
+export type AchievementRarity = 'common' | 'rare' | 'epic' | 'legendary'
+
 export interface SupplyPoint {
   id: string
   name: string
@@ -51,6 +63,54 @@ export interface Inventory {
   total: number
 }
 
+export interface TaskTarget {
+  id: string
+  type: TaskType
+  name: string
+  description: string
+  icon: string
+  threshold: number
+  scoreBonus: number
+  higherIsBetter?: boolean
+}
+
+export interface TaskProgress {
+  taskId: string
+  currentValue: number
+  status: TaskStatus
+}
+
+export interface Achievement {
+  id: string
+  levelId: number
+  name: string
+  description: string
+  icon: string
+  rarity: AchievementRarity
+  condition: {
+    type: TaskType
+    threshold: number
+    higherIsBetter?: boolean
+  }
+  scoreBonus: number
+}
+
+export interface UnlockedAchievement {
+  achievementId: string
+  unlockedAt: number
+}
+
+export interface TaskResult {
+  taskId: string
+  taskName: string
+  icon: string
+  completed: boolean
+  currentValue: number
+  threshold: number
+  scoreBonus: number
+  description: string
+}
+
 export interface LevelConfig {
   id: number
   name: string
@@ -62,6 +122,9 @@ export interface LevelConfig {
   eventProbability: number
   maxTurns: number
   targetScore: number
+  tasks: TaskTarget[]
+  achievements: Achievement[]
+  costThreshold: number
 }
 
 export interface GameState {
@@ -87,6 +150,9 @@ export interface GameStats {
   score: number
   stars: number
   turnsUsed: number
+  taskResults: TaskResult[]
+  unlockedAchievements: string[]
+  taskBonusScore: number
 }
 
 export interface ScoreRecord {
@@ -94,4 +160,13 @@ export interface ScoreRecord {
   score: number
   stars: number
   timestamp: number
+  unlockedAchievementIds: string[]
+  taskCompletedCount: number
+  totalTaskCount: number
+  bestTaskRecord: {
+    taskId: string
+    taskName: string
+    currentValue: number
+    threshold: number
+  }[]
 }

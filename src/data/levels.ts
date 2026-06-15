@@ -241,7 +241,62 @@ export const LEVELS: LevelConfig[] = [
     routes: createRoutes(warehouse, level1Points),
     eventProbability: 0.2,
     maxTurns: 8,
-    targetScore: 600
+    targetScore: 600,
+    costThreshold: 2000,
+    tasks: [
+      {
+        id: 'l1-turn-limit',
+        type: 'turn_limit',
+        name: '闪电配送',
+        description: '在 5 回合内完成所有补货',
+        icon: '⚡',
+        threshold: 5,
+        scoreBonus: 150,
+        higherIsBetter: false
+      },
+      {
+        id: 'l1-no-gap',
+        type: 'no_gap',
+        name: '完美交付',
+        description: '所有点位无补货缺口（100%满足需求）',
+        icon: '✅',
+        threshold: 100,
+        scoreBonus: 200,
+        higherIsBetter: true
+      },
+      {
+        id: 'l1-cost-control',
+        type: 'cost_control',
+        name: '精打细算',
+        description: '路线总消耗控制在 2000 以内',
+        icon: '💰',
+        threshold: 2000,
+        scoreBonus: 100,
+        higherIsBetter: false
+      }
+    ],
+    achievements: [
+      {
+        id: 'l1-first-star',
+        levelId: 1,
+        name: '初露锋芒',
+        description: '首次完成新手村关卡',
+        icon: '🌟',
+        rarity: 'common',
+        condition: { type: 'efficiency_target', threshold: 70, higherIsBetter: true },
+        scoreBonus: 50
+      },
+      {
+        id: 'l1-perfect',
+        levelId: 1,
+        name: '完美新手',
+        description: '完成所有关卡任务',
+        icon: '💎',
+        rarity: 'epic',
+        condition: { type: 'efficiency_target', threshold: 3, higherIsBetter: true },
+        scoreBonus: 300
+      }
+    ]
   },
   {
     id: 2,
@@ -253,7 +308,62 @@ export const LEVELS: LevelConfig[] = [
     routes: createRoutes(warehouse, level2Points),
     eventProbability: 0.35,
     maxTurns: 10,
-    targetScore: 900
+    targetScore: 900,
+    costThreshold: 3500,
+    tasks: [
+      {
+        id: 'l2-urgent-priority',
+        type: 'urgent_priority',
+        name: '紧急优先',
+        description: '至少 1 个紧急点位在 2 回合内完成配送',
+        icon: '🚨',
+        threshold: 2,
+        scoreBonus: 180,
+        higherIsBetter: false
+      },
+      {
+        id: 'l2-anomaly-response',
+        type: 'anomaly_response',
+        name: '快速响应',
+        description: '异常点位平均响应不超过 2 回合',
+        icon: '🛠️',
+        threshold: 2,
+        scoreBonus: 200,
+        higherIsBetter: false
+      },
+      {
+        id: 'l2-turn-limit',
+        type: 'turn_limit',
+        name: '高效调度',
+        description: '在 7 回合内完成全部补货',
+        icon: '⏱️',
+        threshold: 7,
+        scoreBonus: 150,
+        higherIsBetter: false
+      }
+    ],
+    achievements: [
+      {
+        id: 'l2-crisis-manager',
+        levelId: 2,
+        name: '危机经理',
+        description: '在商业街关卡中成功处理所有异常事件',
+        icon: '🏆',
+        rarity: 'rare',
+        condition: { type: 'anomaly_response', threshold: 2, higherIsBetter: false },
+        scoreBonus: 200
+      },
+      {
+        id: 'l2-master',
+        levelId: 2,
+        name: '商业大亨',
+        description: '完成商业街全部任务',
+        icon: '👑',
+        rarity: 'epic',
+        condition: { type: 'efficiency_target', threshold: 3, higherIsBetter: true },
+        scoreBonus: 400
+      }
+    ]
   },
   {
     id: 3,
@@ -265,7 +375,62 @@ export const LEVELS: LevelConfig[] = [
     routes: createRoutes(warehouse, level3Points),
     eventProbability: 0.45,
     maxTurns: 12,
-    targetScore: 1300
+    targetScore: 1300,
+    costThreshold: 5500,
+    tasks: [
+      {
+        id: 'l3-cost-control',
+        type: 'cost_control',
+        name: '成本杀手',
+        description: '路线总消耗控制在 5500 以内',
+        icon: '💵',
+        threshold: 5500,
+        scoreBonus: 200,
+        higherIsBetter: false
+      },
+      {
+        id: 'l3-efficiency',
+        type: 'efficiency_target',
+        name: '高效交付',
+        description: '缺口处理效率达到 95% 以上',
+        icon: '🎯',
+        threshold: 95,
+        scoreBonus: 220,
+        higherIsBetter: true
+      },
+      {
+        id: 'l3-anomaly-response',
+        type: 'anomaly_response',
+        name: '异常克星',
+        description: '异常点位平均响应不超过 1.5 回合',
+        icon: '⚙️',
+        threshold: 1.5,
+        scoreBonus: 250,
+        higherIsBetter: false
+      }
+    ],
+    achievements: [
+      {
+        id: 'l3-vacation-hero',
+        levelId: 3,
+        name: '度假英雄',
+        description: '度假区全点位零缺口',
+        icon: '🏖️',
+        rarity: 'rare',
+        condition: { type: 'no_gap', threshold: 100, higherIsBetter: true },
+        scoreBonus: 300
+      },
+      {
+        id: 'l3-legend',
+        levelId: 3,
+        name: '传说调度',
+        description: '完成度假区全部任务',
+        icon: '🌈',
+        rarity: 'legendary',
+        condition: { type: 'efficiency_target', threshold: 3, higherIsBetter: true },
+        scoreBonus: 500
+      }
+    ]
   },
   {
     id: 4,
@@ -277,6 +442,61 @@ export const LEVELS: LevelConfig[] = [
     routes: createRoutes(warehouse, level4Points),
     eventProbability: 0.55,
     maxTurns: 15,
-    targetScore: 1800
+    targetScore: 1800,
+    costThreshold: 8000,
+    tasks: [
+      {
+        id: 'l4-turn-limit',
+        type: 'turn_limit',
+        name: '极速配送',
+        description: '在 10 回合内完成所有补货',
+        icon: '🚀',
+        threshold: 10,
+        scoreBonus: 300,
+        higherIsBetter: false
+      },
+      {
+        id: 'l4-no-gap',
+        type: 'no_gap',
+        name: '零缺口挑战',
+        description: '全部点位 100% 满足需求',
+        icon: '💯',
+        threshold: 100,
+        scoreBonus: 350,
+        higherIsBetter: true
+      },
+      {
+        id: 'l4-cost-control',
+        type: 'cost_control',
+        name: '最优路线',
+        description: '路线总消耗控制在 8000 以内',
+        icon: '📊',
+        threshold: 8000,
+        scoreBonus: 280,
+        higherIsBetter: false
+      }
+    ],
+    achievements: [
+      {
+        id: 'l4-city-master',
+        levelId: 4,
+        name: '城市之光',
+        description: '达成城市中心关卡三星评价',
+        icon: '🌆',
+        rarity: 'epic',
+        condition: { type: 'efficiency_target', threshold: 85, higherIsBetter: true },
+        scoreBonus: 400
+      },
+      {
+        id: 'l4-ultimate',
+        levelId: 4,
+        name: '终极物流大师',
+        description: '完成全部任务并解锁城市中心所有成就',
+        icon: '🏅',
+        rarity: 'legendary',
+        condition: { type: 'efficiency_target', threshold: 3, higherIsBetter: true },
+        scoreBonus: 800
+      }
+    ]
   }
 ]

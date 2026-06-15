@@ -7,6 +7,7 @@ import RouteQueue from '@/components/game/RouteQueue.vue'
 import InventoryPanel from '@/components/game/InventoryPanel.vue'
 import EventModal from '@/components/game/EventModal.vue'
 import ControlBar from '@/components/game/ControlBar.vue'
+import TaskPanel from '@/components/game/TaskPanel.vue'
 import PauseModal from '@/components/common/PauseModal.vue'
 import TutorialModal from '@/components/common/TutorialModal.vue'
 import { useGame } from '@/composables/useGame'
@@ -37,6 +38,8 @@ const {
   animatingPointId,
   stats,
   totalTraveledDistance,
+  taskProgress,
+  currentLevelConfig,
   addPointToRoute,
   removePointFromRoute,
   reorderRoute,
@@ -63,7 +66,7 @@ watch(levelId, () => {
 watch(isGameOver, (over) => {
   if (over) {
     calculateFinalStats()
-    saveScore(levelId.value, stats.score, stats.stars)
+    saveScore(levelId.value, stats.score, stats.stars, stats)
     setTimeout(() => {
       router.push({
         path: `/result/${levelId.value}`,
@@ -142,6 +145,12 @@ const priorityLabel = (p: Priority) => {
       <div class="grid grid-cols-12 gap-6">
         <div class="col-span-12 lg:col-span-3 space-y-4">
           <InventoryPanel :inventory="inventory" :initial-total="level?.initialInventory.total" />
+
+          <TaskPanel
+            v-if="currentLevelConfig"
+            :tasks="currentLevelConfig.tasks"
+            :task-progress="taskProgress"
+          />
 
           <div class="bg-white rounded-2xl shadow-sm border border-sky-100 p-5">
             <h3 class="text-sm font-semibold text-slate-700 mb-3 flex items-center justify-between">
