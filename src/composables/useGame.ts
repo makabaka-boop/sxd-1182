@@ -1,5 +1,5 @@
 import { ref, reactive, computed } from 'vue'
-import type { Inventory, SupplyPoint, Route, RouteStep, GameEvent, GameStats, Priority, TaskProgress, TaskResult } from '@/types'
+import type { Inventory, SupplyPoint, Route, RouteStep, GameEvent, GameStats, Priority, TaskProgress, TaskResult, TaskTarget } from '@/types'
 import { LEVELS } from '@/data/levels'
 import { generateEvent, getRandomEventType } from '@/data/events'
 import { uid, calcDistance, calcStars, clamp } from '@/utils/helpers'
@@ -58,89 +58,105 @@ export function useGame(levelId: number) {
     return taskProgress.find(tp => tp.taskId === taskId)
   }
 
-  const updateTaskProgress = () => {
+  const evaluateTaskCompletion = (task: TaskTarget): { value: number; completed: boolean; failed: boolean } => {
     const nonWarehousePoints = points.filter(p => p.id !== 'warehouse')
+    let value = 0
+    let completed = false
+    let failed = false
 
+    switch (task.type) {
+      case 'turn_limit': {
+        value = turn.value
+        const allDone = nonWarehousePoints.every(p => p.delivered >= p.demand)
+        if (allDone && value <= task.threshold) {
+          completed = true
+        } else if (turn.value > task.threshold && !allDone) {
+          failed = true
+        }
+        break
+      }
+      case 'urgent_priority': {
+        const urgentPoints = nonWarehousePoints.filter(p => p.priority === 'urgent')
+        if (urgentPoints.length === 0) {
+          value = 0
+          failed = turn.value > 0
+        } else {
+          const completedUrgent = urgentPoints.filter(p => {
+            const deliveryTurn = urgentDeliveryTurns[p.id]
+            return p.delivered >= p.demand && deliveryTurn !== undefined && deliveryTurn <= task.threshold
+          })
+          value = completedUrgent.length
+          completed = completedUrgent.length >= 1
+        }
+        break
+      }
+      case 'anomaly_response': {
+        const anomalyEntries = Object.entries(anomalyResponseTurns)
+        const anomalyStartEntries = Object.entries(anomalyStartTurns).filter(
+          ([id]) => !(id in anomalyResponseTurns)
+        )
+        const hasAnyAnomaly = anomalyEntries.length > 0 || anomalyStartEntries.length > 0
+        if (anomalyEntries.length > 0) {
+          const avgTurns = anomalyEntries.reduce((sum, [, t]) => sum + t, 0) / anomalyEntries.length
+          value = avgTurns
+          completed = avgTurns <= task.threshold && hasAnyAnomaly
+        } else if (anomalyStartEntries.length > 0) {
+          value = turn.value - (anomalyStartEntries[0]?.[1] ?? turn.value)
+          completed = false
+        } else {
+          value = 0
+          failed = false
+        }
+        break
+      }
+      case 'cost_control': {
+        const plannedTotal = plannedRoute.reduce((sum, step) => sum + step.estimatedCost, 0)
+        value = totalTraveledDistance.value + plannedTotal
+        if (value <= task.threshold) {
+          completed = true
+        } else {
+          failed = true
+        }
+        break
+      }
+      case 'no_gap': {
+        const totalDemand = nonWarehousePoints.reduce((sum, p) => sum + p.demand, 0)
+        const totalDelivered = nonWarehousePoints.reduce((sum, p) => sum + Math.min(p.delivered, p.demand), 0)
+        value = totalDemand > 0 ? Math.round((totalDelivered / totalDemand) * 100) : 100
+        completed = value >= task.threshold
+        break
+      }
+      case 'efficiency_target': {
+        const totalD = nonWarehousePoints.reduce((sum, p) => sum + p.demand, 0)
+        const totalGap = nonWarehousePoints.reduce((sum, p) => sum + Math.max(0, p.demand - p.delivered), 0)
+        value = totalD > 0 ? Math.round((1 - totalGap / totalD) * 100) : 100
+        completed = task.higherIsBetter !== false
+          ? value >= task.threshold
+          : value <= task.threshold
+        break
+      }
+    }
+
+    return { value, completed, failed }
+  }
+
+  const updateTaskProgress = () => {
     currentLevelConfig.tasks.forEach(task => {
       const progress = getTaskProgress(task.id)
       if (!progress) return
 
-      let currentValue = 0
-      let status: TaskProgress['status'] = 'in_progress'
+      const { value, completed, failed } = evaluateTaskCompletion(task)
 
-      switch (task.type) {
-        case 'turn_limit':
-          currentValue = turn.value
-          const allDeliveredNow = nonWarehousePoints.every(p => p.delivered >= p.demand)
-          if (allDeliveredNow && currentValue <= task.threshold) {
-            status = 'completed'
-          } else if (turn.value > task.threshold && !allDeliveredNow) {
-            status = 'failed'
-          }
-          break
+      progress.currentValue = value
 
-        case 'urgent_priority':
-          const urgentPoints = nonWarehousePoints.filter(p => p.priority === 'urgent')
-          if (urgentPoints.length > 0) {
-            const completedUrgent = urgentPoints.filter(p => {
-              const deliveryTurn = urgentDeliveryTurns[p.id]
-              return p.delivered >= p.demand && deliveryTurn !== undefined && deliveryTurn <= task.threshold
-            })
-            currentValue = completedUrgent.length
-            if (completedUrgent.length >= 1) {
-              status = 'completed'
-            }
-          } else {
-            currentValue = 0
-          }
-          break
-
-        case 'anomaly_response':
-          const anomalyEntries = Object.entries(anomalyResponseTurns)
-          if (anomalyEntries.length > 0) {
-            const avgTurns = anomalyEntries.reduce((sum, [, t]) => sum + t, 0) / anomalyEntries.length
-            currentValue = avgTurns
-            if (avgTurns <= task.threshold) {
-              status = 'completed'
-            }
-          } else {
-            currentValue = 0
-          }
-          break
-
-        case 'cost_control':
-          currentValue = totalTraveledDistance.value
-          if (currentValue <= task.threshold) {
-            status = 'completed'
-          } else {
-            status = 'failed'
-          }
-          break
-
-        case 'no_gap':
-          const totalDemand = nonWarehousePoints.reduce((sum, p) => sum + p.demand, 0)
-          const totalDelivered = nonWarehousePoints.reduce((sum, p) => sum + Math.min(p.delivered, p.demand), 0)
-          currentValue = totalDemand > 0 ? Math.round((totalDelivered / totalDemand) * 100) : 100
-          if (currentValue >= task.threshold) {
-            status = 'completed'
-          }
-          break
-
-        case 'efficiency_target':
-          const totalD = nonWarehousePoints.reduce((sum, p) => sum + p.demand, 0)
-          const totalGap = nonWarehousePoints.reduce((sum, p) => sum + Math.max(0, p.demand - p.delivered), 0)
-          currentValue = totalD > 0 ? Math.round((1 - totalGap / totalD) * 100) : 100
-          if (task.higherIsBetter ? currentValue >= task.threshold : currentValue <= task.threshold) {
-            status = 'completed'
-          }
-          break
-      }
-
-      progress.currentValue = currentValue
       if (turn.value === 0) {
         progress.status = 'pending'
+      } else if (completed) {
+        progress.status = 'completed'
+      } else if (failed) {
+        progress.status = 'failed'
       } else {
-        progress.status = status
+        progress.status = 'in_progress'
       }
     })
   }
@@ -250,8 +266,6 @@ export function useGame(levelId: number) {
     const point = getPointById(pointId)
     if (!point) return
 
-    const fromPos = getCurrentPosition()
-    const toPos = point.position
     const fromId = plannedRoute.length === 0 ? 'warehouse' : plannedRoute[plannedRoute.length - 1].pointId
     const distance = getEffectiveDistance(fromId, pointId)
 
@@ -261,6 +275,8 @@ export function useGame(levelId: number) {
       order: plannedRoute.length,
       estimatedCost: distance
     })
+
+    updateTaskProgress()
   }
 
   const removePointFromRoute = (stepId: string) => {
@@ -269,6 +285,7 @@ export function useGame(levelId: number) {
 
     plannedRoute.splice(index, 1)
     recalculateRouteCosts()
+    updateTaskProgress()
   }
 
   const reorderRoute = (fromIndex: number, toIndex: number) => {
@@ -279,6 +296,7 @@ export function useGame(levelId: number) {
     const [removed] = plannedRoute.splice(fromIndex, 1)
     plannedRoute.splice(toIndex, 0, removed)
     recalculateRouteCosts()
+    updateTaskProgress()
   }
 
   const recalculateRouteCosts = () => {
@@ -302,6 +320,7 @@ export function useGame(levelId: number) {
     const point = getPointById(pointId)
     if (point && pointId !== 'warehouse') {
       point.priority = priority
+      updateTaskProgress()
     }
   }
 
@@ -555,53 +574,17 @@ export function useGame(levelId: number) {
   }
 
   const calculateTaskResults = (): TaskResult[] => {
-    const nonWarehousePoints = points.filter(p => p.id !== 'warehouse')
     const results: TaskResult[] = []
 
     currentLevelConfig.tasks.forEach(task => {
-      let currentValue = 0
-
-      switch (task.type) {
-        case 'turn_limit':
-          currentValue = turn.value
-          break
-        case 'urgent_priority':
-          const urgentPoints = nonWarehousePoints.filter(p => p.priority === 'urgent')
-          if (urgentPoints.length > 0) {
-            const completedUrgent = urgentPoints.filter(p => {
-              const deliveryTurn = urgentDeliveryTurns[p.id]
-              return p.delivered >= p.demand && deliveryTurn !== undefined && deliveryTurn <= task.threshold
-            })
-            currentValue = completedUrgent.length
-          }
-          break
-        case 'anomaly_response':
-          const anomalyEntries = Object.entries(anomalyResponseTurns)
-          if (anomalyEntries.length > 0) {
-            currentValue = anomalyEntries.reduce((sum, [, t]) => sum + t, 0) / anomalyEntries.length
-          }
-          break
-        case 'cost_control':
-          currentValue = totalTraveledDistance.value
-          break
-        case 'no_gap':
-        case 'efficiency_target':
-          const totalDemand = nonWarehousePoints.reduce((sum, p) => sum + p.demand, 0)
-          const totalGap = nonWarehousePoints.reduce((sum, p) => sum + Math.max(0, p.demand - p.delivered), 0)
-          currentValue = totalDemand > 0 ? Math.round((1 - totalGap / totalDemand) * 100) : 100
-          break
-      }
-
-      const completed = task.higherIsBetter !== false
-        ? currentValue >= task.threshold
-        : currentValue <= task.threshold
+      const { value, completed } = evaluateTaskCompletion(task)
 
       results.push({
         taskId: task.id,
         taskName: task.name,
         icon: task.icon,
         completed,
-        currentValue,
+        currentValue: value,
         threshold: task.threshold,
         scoreBonus: completed ? task.scoreBonus : 0,
         description: task.description
@@ -615,6 +598,8 @@ export function useGame(levelId: number) {
     const unlocked: string[] = []
     const nonWarehousePoints = points.filter(p => p.id !== 'warehouse')
     const completedTasksCount = taskResults.filter(r => r.completed).length
+    const anomalyEntries = Object.entries(anomalyResponseTurns)
+    const hasAnomalies = anomalyEntries.length > 0
 
     currentLevelConfig.achievements.forEach(achievement => {
       let conditionMet = false
@@ -634,20 +619,24 @@ export function useGame(levelId: number) {
           }
           break
         case 'anomaly_response':
-          const anomalyEntries = Object.entries(anomalyResponseTurns)
-          if (anomalyEntries.length > 0) {
+          if (hasAnomalies) {
             const avgTurns = anomalyEntries.reduce((sum, [, t]) => sum + t, 0) / anomalyEntries.length
-            conditionMet = cond.higherIsBetter !== false ? avgTurns >= cond.threshold : avgTurns <= cond.threshold
+            conditionMet = cond.higherIsBetter !== false
+              ? avgTurns >= cond.threshold
+              : avgTurns <= cond.threshold
           } else {
-            conditionMet = true
+            conditionMet = false
           }
           break
-        case 'no_gap':
+        case 'no_gap': {
           const totalDemand = nonWarehousePoints.reduce((sum, p) => sum + p.demand, 0)
           const totalDelivered = nonWarehousePoints.reduce((sum, p) => sum + Math.min(p.delivered, p.demand), 0)
           const gapRate = totalDemand > 0 ? Math.round((totalDelivered / totalDemand) * 100) : 100
-          conditionMet = cond.higherIsBetter !== false ? gapRate >= cond.threshold : gapRate <= cond.threshold
+          conditionMet = cond.higherIsBetter !== false
+            ? gapRate >= cond.threshold
+            : gapRate <= cond.threshold
           break
+        }
         default:
           conditionMet = completedTasksCount >= 1
       }
